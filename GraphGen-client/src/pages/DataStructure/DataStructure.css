@@ -1,0 +1,426 @@
+/* ═══════════════════════════════════════════════════
+   Data Structure Visualizer — Split-Pane Layout
+   (Cyan / Teal-blue accent theming)
+   ═══════════════════════════════════════════════════ */
+
+.ds-page {
+  height: calc(100dvh - var(--nav-height));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.ds-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Base Pane Styles ── */
+.ds-input-pane,
+.ds-output-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.ds-input-pane::-webkit-scrollbar,
+.ds-output-pane::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-input-pane {
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(10px);
+  max-width: 500px;
+}
+
+.ds-output-pane {
+  background: var(--bg-primary);
+}
+
+/* ── Header ── */
+.ds-pane-header {
+  margin-bottom: 1.75rem;
+}
+
+.ds-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.ds-title-icon {
+  color: #06b6d4; /* cyan accent */
+}
+
+.ds-pane-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.ds-pane-header p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ds-output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* ── Form Elements ── */
+.ds-input-group {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ds-input-group.ds-flex-grow {
+  flex: 1;
+}
+
+.ds-input-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.ds-label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ds-demo-link {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: var(--transition);
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.ds-demo-link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border);
+}
+
+.ds-input,
+.ds-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 0.875rem 1rem;
+  font-size: 0.95rem;
+  transition: var(--transition);
+}
+
+.ds-textarea {
+  flex: 1;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.5;
+  min-height: 160px;
+}
+
+.ds-input:focus,
+.ds-textarea:focus {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15);
+}
+
+.ds-input::placeholder,
+.ds-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+
+
+/* ── Error State ── */
+.ds-error-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(225, 29, 72, 0.1);
+  border: 1px solid rgba(225, 29, 72, 0.3);
+  border-radius: var(--radius-sm);
+  color: #fb7185;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ds-error-message svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* ── Generate Button ── */
+.ds-btn-generate {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #0891b2, #06b6d4);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: var(--transition);
+  margin-top: auto;
+}
+
+.ds-btn-generate:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0e7490, #0891b2);
+  opacity: 0.85;
+  box-shadow: 0 4px 18px rgba(6, 182, 212, 0.3);
+}
+
+.ds-btn-generate:disabled {
+  background: var(--border);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* ── Download Button ── */
+.ds-btn-download {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.ds-btn-download:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-secondary);
+}
+
+/* ── Output / Viz Area ── */
+.ds-viz-render-area {
+  flex: 1;
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  min-height: 400px;
+}
+
+.ds-viz-container {
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: transparent;
+}
+
+.ds-viz-container > div {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-viz-container svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* ── Empty & Loading States ── */
+.ds-empty-state,
+.ds-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #444444;
+  padding: 3rem;
+}
+
+.ds-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #cffafe, #67e8f9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  color: #0e7490;
+}
+
+.ds-empty-state p {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #000000;
+  margin-bottom: 0.5rem;
+}
+
+.ds-empty-state span {
+  font-size: 0.9rem;
+  max-width: 340px;
+  line-height: 1.5;
+}
+
+.ds-loading-state p {
+  margin-top: 1.5rem;
+  font-weight: 500;
+  color: #000000;
+}
+
+.ds-loading-subtext {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #666666;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ── Spinners ── */
+.ds-spinner {
+  animation: ds-spin 1s linear infinite;
+}
+
+.ds-spinner-large {
+  width: 48px;
+  height: 48px;
+  color: #0e7490;
+  animation: ds-spin 1s linear infinite;
+}
+
+@keyframes ds-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════
+   Responsive Breakpoints
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .ds-input-pane {
+    max-width: 400px;
+    padding: 1.5rem;
+  }
+
+  .ds-output-pane {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .ds-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .ds-container {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .ds-input-pane,
+  .ds-output-pane {
+    flex: none;
+    overflow-y: visible;
+  }
+
+  .ds-input-pane {
+    max-width: 100%;
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .ds-textarea {
+    min-height: 150px;
+  }
+
+  .ds-output-pane {
+    min-height: 60vh;
+  }
+}
+
+@media (max-width: 600px) {
+  .ds-input-pane,
+  .ds-output-pane {
+    padding: 1.25rem;
+  }
+
+  .ds-pane-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .ds-pane-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .ds-btn-generate {
+    padding: 0.875rem;
+    font-size: 0.95rem;
+  }
+
+
+}
+
+@media (max-width: 480px) {
+  .ds-input-pane,
+  .ds-output-pane {
+    padding: 1rem;
+  }
+}

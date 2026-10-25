@@ -1,0 +1,591 @@
+.user-home-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+/* Subtle grid background similar to other pages */
+.user-home-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Navbar styles matching the landing page */
+.user-navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--nav-height);
+  box-sizing: border-box;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav-logo {
+  height: 50px;
+  width: auto;
+}
+
+.nav-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.nav-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* Uniform spacing between github, theme, and profile */
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-greeting {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+/* ── Profile Dropdown ── */
+.user-profile {
+  position: relative;
+}
+
+.user-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  border: none;
+}
+
+.user-profile-trigger:hover {
+  background: var(--bg-input);
+}
+
+.profile-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.profile-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 230px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 0.4rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.75rem 0.5rem;
+}
+
+.dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+
+.dropdown-name {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dropdown-role {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.profile-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.2rem 0;
+}
+
+.profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.profile-dropdown-item:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.profile-dropdown-item svg {
+  flex-shrink: 0;
+}
+
+.profile-dropdown-logout {
+  color: #ef4444;
+}
+
+.profile-dropdown-logout:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+.github-link, .theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.github-link:hover, .theme-toggle:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+  opacity: 0.85;
+}
+
+
+
+.user-layout {
+  display: flex;
+  flex: 1;
+  position: relative;
+  overflow: hidden; /* Prevent scrolling issues with absolute sidebar */
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-primary); /* Forced to primary color for visibility */
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.sidebar-toggle svg {
+  width: 24px;
+  height: 24px;
+  color: var(--text-primary);
+}
+
+.sidebar-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+/* Sidebar Styles */
+.user-sidebar {
+  width: 260px;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  position: fixed; /* Fixed position so it doesn't scroll with page */
+  top: var(--nav-height); /* Height of navbar */
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.user-sidebar.closed {
+  transform: translateX(-110%);
+  border-right: none;
+  box-shadow: none;
+  visibility: hidden; /* Ensure it's not focusable or visible via shadow */
+  pointer-events: none;
+}
+
+.user-sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-content {
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.menu-item:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.menu-item.active,
+.menu-item.active-submenu {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.menu-item.active .menu-text,
+.menu-item.active-submenu .menu-text {
+  color: var(--text-primary);
+}
+
+.menu-item.active svg,
+.menu-item.active-submenu svg {
+  color: var(--text-primary);
+}
+
+.menu-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.menu-text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Submenu Styles */
+.submenu {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, margin 0.3s ease;
+}
+
+.submenu.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.submenu.expanded {
+  max-height: 200px; /* Adjust based on expected items */
+  opacity: 1;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: left;
+}
+
+.submenu-item:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.submenu-item.active-submenu {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Main Content Area adjustments for sidebar */
+.user-main-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 0; /* Default closed state margin */
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.main-content-header {
+  padding: 0.65rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* ── Breadcrumbs ── */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: var(--transition);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
+.breadcrumb-link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.breadcrumb-link.active {
+  color: var(--accent);
+}
+
+.breadcrumb-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0.35rem 0.6rem;
+}
+
+.breadcrumb-separator {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.crumb-icon {
+  opacity: 0.8;
+}
+
+.user-main-content.sidebar-open {
+  margin-left: 260px; /* Push content when sidebar is open */
+}
+
+.content-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3rem;
+  margin: auto;
+  max-width: 600px;
+}
+
+.content-placeholder h2 {
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+  .nav-center, .nav-links {
+    display: none; /* Hide centered links on tablets and below to save space */
+  }
+}
+
+@media (max-width: 768px) {
+  .user-navbar {
+    padding: 0.75rem 1rem;
+  }
+
+  .nav-left {
+    gap: 1.25rem;
+  }
+
+  .nav-logo {
+    height: 40px;
+  }
+
+  .nav-right {
+    gap: 0.5rem;
+  }
+
+  .github-link, .theme-toggle {
+    width: 34px;
+    height: 34px;
+  }
+
+  .user-sidebar {
+    width: 240px; /* Slightly narrower sidebar */
+  }
+
+  .user-main-content {
+    padding: 1rem;
+  }
+
+  .user-main-content.sidebar-open {
+    margin-left: 0; /* Don't push content on mobile */
+  }
+
+  /* On mobile, when sidebar is open, it should overlay the content */
+  .user-layout {
+    overflow-x: hidden;
+  }
+
+  .user-sidebar.open {
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+
+
+  .user-greeting {
+    display: none; /* Hide name text to save space */
+  }
+
+  .btn-logout {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    margin-left: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-title {
+    display: none; /* Only show logo on very small screens */
+  }
+  
+  .user-sidebar {
+    width: 100%; /* Full screen sidebar on very small mobile */
+  }
+}
