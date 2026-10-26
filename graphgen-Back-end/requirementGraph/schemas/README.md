@@ -1,0 +1,20 @@
+# Conceptual schemas (planned)
+
+**Status:** JSON Schema-compatible field design documented; no schema files, database models, or runtime validators are implemented or tested. `string`, `number`, `boolean`, `array`, `object`, `null`, and enums below use JSON Schema concepts. Unless marked optional, fields are required. References are IDs, not embedded duplicate records.
+
+| Schema | Required fields and types | Optional fields / constraints | Relationships |
+| --- | --- | --- | --- |
+| `Requirement` | `id:string` (`REQ-`), `text:string`, `sourceText:string`, `type:enum FUNCTIONAL/NON_FUNCTIONAL`, `entities:array<string>`, `actions:array<string>`, `conditions:array`, `constraints:array`, `ambiguities:array` | `confidence:number|null` in [0,1], source spans, dependencies | `sourceSpecificationId:string` (`SPEC-`) |
+| `NormalizedRequirement` | `requirementId:string`, `sourceRequirementId:string`, `normalizedText:string`, `requirementType:enum`, `entities/actions/conditions/constraints/dependencies:array`, `provenance:array` | uncertain synonym candidates, source spans | References Requirement |
+| `RequirementNode` | `id:string` (`NODE-`), `type:node enum`, `label:string`, `sourceRequirementIds:array<string>`, `attributes:object`, `metadata:object` | `description:string`; metadata origin enum and nullable confidence | References Requirements |
+| `RequirementEdge` | `id:string` (`EDGE-`), `source:string`, `target:string`, `type:edge enum`, `sourceRequirementIds:array<string>`, `directed:boolean`, `metadata:object` | evidence details | Endpoints reference RequirementNode |
+| `RequirementGraph` | `graphId:string` (`RG-`), `version:string`, `sourceSpecificationId:string`, `nodes:array<RequirementNode>`, `edges:array<RequirementEdge>`, `metadata:object` | createdAt:string/null; counts:number; status enum (`DESIGN_ONLY`, `DRAFT`, `VALIDATED`) | Contains nodes/edges; edges reference nodes |
+| `DiagramProjection` | `projectionId:string`, `version:string`, `diagramType:string`, `sourceGraphId:string`, `sourceGraphVersion:string`, `elements:array<DiagramElement>`, `metadata:object` | unsupported/ambiguous items | Elements reference graph and requirement IDs |
+| `DiagramElement` | `id:string`, `type:string`, `label:string`, `sourceGraphElementIds:array<string>`, `sourceRequirementIds:array<string>`, `attributes:object` | relationships/geometry as target profile permits | Belongs to projection |
+| `ValidationIssue` | `id:string`, `code:string`, `severity:enum`, `message:string`, `affectedIds:array<string>` | evidence:array, suggestedCorrection:string | Referenced by ValidationReport and RefinementRecord |
+| `ValidationReport` | `reportId:string`, `version:string`, `subjectId:string`, `subjectVersion:string`, `status:enum`, `issues:array<ValidationIssue>` | summary, checkedAt:string | Issues describe graph/projection subject |
+| `TraceabilityMapping` | `mappingId:string`, `version:string`, `records:array<object>` | summary | Each record has `traceId` (`TRACE-`), requirementId, graphElementIds, projectionElementIds, outputReferences, status enum, evidence |
+| `ConsistencyReport` | `reportId:string`, `version:string`, `representationIds:array<string>`, `status:enum`, `issues:array<ValidationIssue>` | compared claim details | References projections/representations and requirements |
+| `RefinementRecord` | `refinementId:string` (`REF-`), `iteration:integer`, `affectedRequirementIds:array<string>`, `issues:array<ValidationIssue>`, `corrections:array<object>`, `status:enum` | before/after version, timestamp | Refers to report and revised projection |
+
+Cross-field rules: IDs unique within collection; edge endpoints resolve; requirement references resolve; `directed` is true for defined directed edges; confidence is null or [0,1]; versions are explicit; provenance is retained at every derived element. A production schema should encode stricter target-specific element and edge `enum` values via versioned profiles. Breaking field or semantic changes require a major schema version and explicit migration/adapter; consumers must reject or deliberately adapt unknown major versions.
