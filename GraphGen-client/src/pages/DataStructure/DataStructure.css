@@ -424,3 +424,43 @@
     padding: 1rem;
   }
 }
+
+/* == Output Tab Pills (shared .output-tab class) == */
+.output-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.output-tab {
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.output-tab:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.output-tab.active {
+  border-color: #a78bfa;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+}
+
+/* == RequirementGraph view: dark canvas override == */
+.rg-dark-canvas {
+  background: #070b14 !important;
+  background-image: none !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUp, Download, Loader2, AlertCircle, CircleDot, Key, Copy, Check } from 'lucide-react';
 import useTitle from '../../utils/useTitle';
@@ -8,6 +8,8 @@ import useApiKeyStatus from '../../utils/useApiKeyStatus';
 import { copyToClipboard } from '../../utils/clipboard';
 import { Graphviz } from 'graphviz-react';
 import geminiIcon from '../../assets/gemini-icon.png';
+import RequirementGraphViewer from '../../components/RequirementGraphViewer';
+import { generateRequirementGraph } from '../../utils/requirementGraphClient';
 import './DFA.css';
 
 const AVAILABLE_MODELS = [
@@ -38,13 +40,18 @@ export default function DFA() {
   const [regularExpression, setRegularExpression] = useState('');
   const [contextFreeGrammar, setContextFreeGrammar] = useState([]);
   const [activeTab, setActiveTab] = useState('diagram');
+  const [requirementGraph, setRequirementGraph] = useState(null);
+  const [requirementGraphLoading, setRequirementGraphLoading] = useState(false);
+  const [requirementGraphError, setRequirementGraphError] = useState(null);
+  const [requirementGraphValidation, setRequirementGraphValidation] = useState(null);
   const [copiedType, setCopiedType] = useState('');
   const copyTimerRef = useRef(null);
+  const requestIdRef = useRef(0);
 
   const { saveHistory } = useHistory('dfa');
   const { hasApiKey } = useApiKeyStatus();
 
-  /* ── Restore from History page navigation ── */
+  /* â”€â”€ Restore from History page navigation â”€â”€ */
   useEffect(() => {
     if (location.state?.fromHistory) {
       setVizCode(location.state.outputData?.vizCode || '');
@@ -83,60 +90,83 @@ export default function DFA() {
       return;
     }
 
+    const requestId = Date.now() + Math.random();
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setRequirementGraphLoading(true);
+    setRequirementGraphError(null);
+    setRequirementGraph(null);
+    setRequirementGraphValidation(null);
+    setActiveTab('diagram');
 
     try {
-      const response = await api.post('/api/diagram/toc/dfa', {
-        query: description,
-        model: selectedModel,
-      });
+      const [diagramResult, graphResult] = await Promise.allSettled([
+        api.post('/api/diagram/toc/dfa', {
+          query: description,
+          model: selectedModel,
+        }),
+        generateRequirementGraph({ prompt: description, diagramType: 'DFA', category: 'AUTOMATA' }),
+      ]);
 
-      if (response.data.status === 'success' && response.data.data) {
-        const responseData = response.data.data;
-        let rawCode = responseData.vizCode || '';
-        
-        // Strip markdown code block backticks if present (e.g., ```dot ... ```)
-        rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+      if (requestId !== requestIdRef.current) return;
 
-        // Extract just the valid graphviz block to discard arbitrary conversational text
-        const digraphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
-        if (digraphMatch) {
-          rawCode = digraphMatch[0];
-        }
+      if (diagramResult.status === 'fulfilled') {
+        const response = diagramResult.value;
+        if (response.data.status === 'success' && response.data.data) {
+          const responseData = response.data.data;
+          let rawCode = responseData.vizCode || '';
 
-        setVizCode(rawCode);
-        setRegularExpression(typeof responseData.regularExpression === 'string' ? responseData.regularExpression.trim() : '');
-        setContextFreeGrammar(
-          Array.isArray(responseData.contextFreeGrammar)
-            ? responseData.contextFreeGrammar.filter(Boolean)
-            : typeof responseData.contextFreeGrammar === 'string'
-              ? responseData.contextFreeGrammar.split('\n').map((rule) => rule.trim()).filter(Boolean)
-              : []
-        );
-        setActiveTab('diagram');
+          rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
 
-        // Save to history
-        saveHistory(
-          { prompt: description },
-          {
-            vizCode: rawCode,
-            regularExpression: typeof responseData.regularExpression === 'string' ? responseData.regularExpression.trim() : '',
-            contextFreeGrammar: Array.isArray(responseData.contextFreeGrammar)
+          const digraphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
+          if (digraphMatch) {
+            rawCode = digraphMatch[0];
+          }
+
+          setVizCode(rawCode);
+          setRegularExpression(typeof responseData.regularExpression === 'string' ? responseData.regularExpression.trim() : '');
+          setContextFreeGrammar(
+            Array.isArray(responseData.contextFreeGrammar)
               ? responseData.contextFreeGrammar.filter(Boolean)
               : typeof responseData.contextFreeGrammar === 'string'
                 ? responseData.contextFreeGrammar.split('\n').map((rule) => rule.trim()).filter(Boolean)
-                : [],
-          }
-        );
+                : []
+          );
+          setActiveTab('diagram');
+
+          saveHistory(
+            { prompt: description },
+            {
+              vizCode: rawCode,
+              regularExpression: typeof responseData.regularExpression === 'string' ? responseData.regularExpression.trim() : '',
+              contextFreeGrammar: Array.isArray(responseData.contextFreeGrammar)
+                ? responseData.contextFreeGrammar.filter(Boolean)
+                : typeof responseData.contextFreeGrammar === 'string'
+                  ? responseData.contextFreeGrammar.split('\n').map((rule) => rule.trim()).filter(Boolean)
+                  : [],
+            }
+          );
+        } else {
+          setError('Failed to generate output. Invalid response format.');
+        }
       } else {
-        setError('Failed to generate output. Invalid response format.');
+        console.error('Error generating DFA:', diagramResult.reason);
+        setError(diagramResult.reason.response?.data?.message || 'Failed to connect to the server. Please check your API key and try again.');
       }
-    } catch (err) {
-      console.error('Error generating DFA:', err);
-      setError(err.response?.data?.message || 'Failed to connect to the server. Please check your API key and try again.');
+
+      if (graphResult.status === 'fulfilled') {
+        setRequirementGraph(graphResult.value?.graph || null);
+        setRequirementGraphValidation(graphResult.value?.validation || null);
+      } else {
+        const err = graphResult.reason;
+        setRequirementGraphError(err.response?.data?.message || err.message || 'Requirement graph generation failed.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRequirementGraphLoading(false);
+      }
     }
   };
 
@@ -308,7 +338,10 @@ export default function DFA() {
 
           <div className="output-tabs">
             <button className={`output-tab ${activeTab === 'diagram' ? 'active' : ''}`} onClick={() => setActiveTab('diagram')}>
-              Diagram
+              Generated Diagram
+            </button>
+            <button className={`output-tab ${activeTab === 'requirement-graph' ? 'active' : ''}`} onClick={() => setActiveTab('requirement-graph')}>
+              Requirement Graph
             </button>
             <button className={`output-tab ${activeTab === 'regex' ? 'active' : ''}`} onClick={() => setActiveTab('regex')}>
               Regular Expression
@@ -318,7 +351,7 @@ export default function DFA() {
             </button>
           </div>
 
-          <div className={`viz-render-area ${activeTab !== 'diagram' ? 'text-mode' : ''}`}>
+          <div className={`viz-render-area ${activeTab !== 'diagram' && activeTab !== 'requirement-graph' ? 'text-mode' : ''} ${activeTab === 'requirement-graph' ? 'rg-dark-canvas' : ''}`}>
             {activeTab === 'diagram' ? (
               loading ? (
                 <div className="loading-state">
@@ -342,6 +375,14 @@ export default function DFA() {
                   <span>Enter your configuration and description on the left to begin.</span>
                 </div>
               )
+            ) : activeTab === 'requirement-graph' ? (
+              <RequirementGraphViewer
+                graph={requirementGraph}
+                loading={requirementGraphLoading}
+                error={requirementGraphError}
+                validation={requirementGraphValidation}
+                onRetry={handleGenerate}
+              />
             ) : activeTab === 'regex' ? (
               <div className="text-output-block">
                 <div className="text-output-header">
@@ -352,7 +393,7 @@ export default function DFA() {
                   </button>
                 </div>
                 {loading ? (
-                  <div className="text-loading">Loading regular expression…</div>
+                  <div className="text-loading">Loading regular expressionâ€¦</div>
                 ) : regularExpression ? (
                   <>
                     <p className="text-output-description">Equivalent pattern for the generated automaton:</p>
@@ -372,7 +413,7 @@ export default function DFA() {
                   </button>
                 </div>
                 {loading ? (
-                  <div className="text-loading">Loading grammar rules…</div>
+                  <div className="text-loading">Loading grammar rulesâ€¦</div>
                 ) : contextFreeGrammar.length > 0 ? (
                   <ol className="cfg-list">
                     {contextFreeGrammar.map((rule, index) => (

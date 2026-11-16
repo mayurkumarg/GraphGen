@@ -1,4 +1,4 @@
-import { useState, useEffect, Component } from 'react';
+﻿import { useState, useEffect, Component, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUp, Download, Loader2, AlertCircle, Network, RefreshCcw, Key } from 'lucide-react';
 import useTitle from '../../utils/useTitle';
@@ -7,9 +7,11 @@ import useHistory from '../../utils/useHistory';
 import useApiKeyStatus from '../../utils/useApiKeyStatus';
 import { Graphviz } from 'graphviz-react';
 import geminiIcon from '../../assets/gemini-icon.png';
+import RequirementGraphViewer from '../../components/RequirementGraphViewer';
+import { generateRequirementGraph } from '../../utils/requirementGraphClient';
 import './DataStructure.css';
 
-/* ── Error Boundary to catch Graphviz rendering crashes ── */
+/* â”€â”€ Error Boundary to catch Graphviz rendering crashes â”€â”€ */
 class GraphvizErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -50,7 +52,7 @@ class GraphvizErrorBoundary extends Component {
   }
 }
 
-/* ── Example prompts ── */
+/* â”€â”€ Example prompts â”€â”€ */
 const AVAILABLE_MODELS = [
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
   { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash' },
@@ -61,7 +63,7 @@ const AVAILABLE_MODELS = [
 
 const EXAMPLE_PROMPTS = [
   'Create a BST by inserting 50, 30, 70, 20, 40, 60, 80',
-  'Visualize a singly linked list with values 10 → 20 → 30 → 40',
+  'Visualize a singly linked list with values 10 â†’ 20 â†’ 30 â†’ 40',
   'Show a max-heap with elements [90, 80, 70, 50, 60, 40, 30]',
   'Draw a stack with elements: A, B, C, D (D on top)',
   'Draw an undirected graph with 5 vertices and edges A-B, B-C, C-D, D-E, E-A, A-C',
@@ -77,12 +79,18 @@ export default function DataStructure() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [vizCode, setVizCode] = useState('');
+  const [requirementGraph, setRequirementGraph] = useState(null);
+  const [requirementGraphLoading, setRequirementGraphLoading] = useState(false);
+  const [requirementGraphError, setRequirementGraphError] = useState(null);
+  const [requirementGraphValidation, setRequirementGraphValidation] = useState(null);
   const [renderKey, setRenderKey] = useState(0);
+  const [activeTab, setActiveTab] = useState('diagram');
+  const requestIdRef = useRef(0);
 
   const { saveHistory } = useHistory('data-structure');
   const { hasApiKey } = useApiKeyStatus();
 
-  /* ── Restore from History page navigation ── */
+  /* â”€â”€ Restore from History page navigation â”€â”€ */
   useEffect(() => {
     if (location.state?.fromHistory) {
       if (location.state.outputData?.vizCode) {
@@ -101,58 +109,77 @@ export default function DataStructure() {
       return;
     }
 
+    const requestId = Date.now() + Math.random();
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setRequirementGraphLoading(true);
+    setRequirementGraphError(null);
+    setRequirementGraph(null);
+    setRequirementGraphValidation(null);
     setVizCode('');
+    setActiveTab('diagram');
 
     try {
-      const response = await api.post('/api/diagram/ds', {
-        query: description,
-        model: selectedModel,
-      });
+      const [diagramResult, graphResult] = await Promise.allSettled([
+        api.post('/api/diagram/ds', {
+          query: description,
+          model: selectedModel,
+        }),
+        generateRequirementGraph({ prompt: description, diagramType: 'Data Structure', category: 'DATA_STRUCTURE' }),
+      ]);
 
-      if (response.data.status === 'success' && response.data.data.vizCode) {
-        let rawCode = response.data.data.vizCode;
+      if (requestId !== requestIdRef.current) return;
 
-        // Strip markdown code block backticks if present
-        rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+      if (diagramResult.status === 'fulfilled') {
+        const response = diagramResult.value;
+        if (response.data.status === 'success' && response.data.data.vizCode) {
+          let rawCode = response.data.data.vizCode;
 
-        // Extract valid graphviz block — supports both 'digraph' and 'graph' (undirected)
-        const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
-        if (graphMatch) rawCode = graphMatch[0];
+          rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
 
-        // Fix invalid <-> edges: convert to undirected graph with -- edges
-        if (rawCode.includes('<->')) {
-          rawCode = rawCode.replace(/\bdigraph\b/i, 'graph');
-          rawCode = rawCode.replace(/<->/g, '--');
+          const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
+          if (graphMatch) rawCode = graphMatch[0];
+
+          if (rawCode.includes('<->')) {
+            rawCode = rawCode.replace(/\bdigraph\b/i, 'graph');
+            rawCode = rawCode.replace(/<->/g, '--');
+          }
+
+          if (/^\s*graph\b/i.test(rawCode) && rawCode.includes('->')) {
+            rawCode = rawCode.replace(/->/g, '--');
+          }
+
+          if (/^\s*digraph\b/i.test(rawCode) && /\s--\s/.test(rawCode)) {
+            rawCode = rawCode.replace(/\s--\s/g, ' -> ');
+          }
+
+          setVizCode(rawCode);
+          setRenderKey((k) => k + 1);
+          saveHistory({ prompt: description }, { vizCode: rawCode });
+        } else {
+          setError('Failed to generate diagram. Please try again.');
         }
-
-        // If 'graph' (undirected) still has -> edges, fix them to --
-        if (/^\s*graph\b/i.test(rawCode) && rawCode.includes('->')) {
-          rawCode = rawCode.replace(/->/g, '--');
-        }
-
-        // If 'digraph' still has -- edges, fix them to ->
-        if (/^\s*digraph\b/i.test(rawCode) && /\s--\s/.test(rawCode)) {
-          rawCode = rawCode.replace(/\s--\s/g, ' -> ');
-        }
-
-        setVizCode(rawCode);
-        setRenderKey((k) => k + 1); // force fresh error boundary
-
-        // Save to history
-        saveHistory({ prompt: description }, { vizCode: rawCode });
       } else {
-        setError('Failed to generate diagram. Please try again.');
+        console.error('Data Structure error:', diagramResult.reason);
+        setError(
+          diagramResult.reason.response?.data?.message ||
+            'Failed to connect. Please check your API key and try again.'
+        );
       }
-    } catch (err) {
-      console.error('Data Structure error:', err);
-      setError(
-        err.response?.data?.message ||
-          'Failed to connect. Please check your API key and try again.'
-      );
+
+      if (graphResult.status === 'fulfilled') {
+        setRequirementGraph(graphResult.value?.graph || null);
+        setRequirementGraphValidation(graphResult.value?.validation || null);
+      } else {
+        const err = graphResult.reason;
+        setRequirementGraphError(err.response?.data?.message || err.message || 'Requirement graph generation failed.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRequirementGraphLoading(false);
+      }
     }
   };
 
@@ -206,7 +233,7 @@ export default function DataStructure() {
   return (
     <div className="ds-page">
       <div className="ds-container">
-        {/* ══ LEFT PANE ══ */}
+        {/* â•â• LEFT PANE â•â• */}
         <div className="ds-input-pane">
 
           {/* No API Key Banner */}
@@ -222,7 +249,7 @@ export default function DataStructure() {
               <h2>Data Structure Visualizer</h2>
             </div>
             <p>
-              Describe any data structure and visualize it instantly — BST, Linked Lists,
+              Describe any data structure and visualize it instantly â€” BST, Linked Lists,
               Heaps, Graphs, Stacks, Queues, and more.
             </p>
           </div>
@@ -290,11 +317,11 @@ export default function DataStructure() {
           )}
         </div>
 
-        {/* ══ RIGHT PANE ══ */}
+        {/* â•â• RIGHT PANE â•â• */}
         <div className="ds-output-pane">
           <div className="ds-pane-header ds-output-header">
             <h2>Generated Diagram</h2>
-            {vizCode && (
+            {activeTab === 'diagram' && vizCode && (
               <button className="ds-btn-download" onClick={handleDownloadPNG}>
                 <Download size={16} />
                 <span>Export PNG</span>
@@ -302,43 +329,62 @@ export default function DataStructure() {
             )}
           </div>
 
-          <div className="ds-viz-render-area">
-            {loading ? (
-              <div className="ds-loading-state">
-                <Loader2 className="ds-spinner-large" />
-                <p>Building your data structure…</p>
-                <span className="ds-loading-subtext">
-                  The AI is analyzing nodes, edges, and relationships. This may take a moment.
-                </span>
-              </div>
-            ) : vizCode ? (
-              <GraphvizErrorBoundary
-                key={renderKey}
-                onRetry={() => setVizCode('')}
-              >
-                <div className="ds-viz-container">
-                  <Graphviz
-                    dot={vizCode}
-                    options={{
-                      useWorker: false,
-                      zoom: true,
-                      height: '100%',
-                      width: '100%',
-                      fit: true,
-                    }}
-                  />
+          <div className="output-tabs">
+            <button className={`output-tab ${activeTab === 'diagram' ? 'active' : ''}`} onClick={() => setActiveTab('diagram')}>
+              Generated Diagram
+            </button>
+            <button className={`output-tab ${activeTab === 'requirement-graph' ? 'active' : ''}`} onClick={() => setActiveTab('requirement-graph')}>
+              Requirement Graph
+            </button>
+          </div>
+
+          <div className={`ds-viz-render-area${activeTab === "requirement-graph" ? " rg-dark-canvas" : ""}`}>
+            {activeTab === 'diagram' ? (
+              loading ? (
+                <div className="ds-loading-state">
+                  <Loader2 className="ds-spinner-large" />
+                  <p>Building your data structureâ€¦</p>
+                  <span className="ds-loading-subtext">
+                    The AI is analyzing nodes, edges, and relationships. This may take a moment.
+                  </span>
                 </div>
-              </GraphvizErrorBoundary>
+              ) : vizCode ? (
+                <GraphvizErrorBoundary
+                  key={renderKey}
+                  onRetry={() => setVizCode('')}
+                >
+                  <div className="ds-viz-container">
+                    <Graphviz
+                      dot={vizCode}
+                      options={{
+                        useWorker: false,
+                        zoom: true,
+                        height: '100%',
+                        width: '100%',
+                        fit: true,
+                      }}
+                    />
+                  </div>
+                </GraphvizErrorBoundary>
+              ) : (
+                <div className="ds-empty-state">
+                  <div className="ds-empty-icon">
+                    <Network size={44} strokeWidth={1.2} />
+                  </div>
+                  <p>No diagram generated yet</p>
+                  <span>
+                    Describe a data structure on the left and press <strong>Enter</strong> or click the arrow to visualize it.
+                  </span>
+                </div>
+              )
             ) : (
-              <div className="ds-empty-state">
-                <div className="ds-empty-icon">
-                  <Network size={44} strokeWidth={1.2} />
-                </div>
-                <p>No diagram generated yet</p>
-                <span>
-                  Describe a data structure on the left and press <strong>Enter</strong> or click the arrow to visualize it.
-                </span>
-              </div>
+              <RequirementGraphViewer
+                graph={requirementGraph}
+                loading={requirementGraphLoading}
+                error={requirementGraphError}
+                validation={requirementGraphValidation}
+                onRetry={handleGenerate}
+              />
             )}
           </div>
           <div className="powered-by-gemini">

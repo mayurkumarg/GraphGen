@@ -3,6 +3,7 @@ import cors from "cors";
 import userRoute from "./routes/userRoute.js"
 import diagramGenerator from "./routes/diagram.js";
 import historyRoute from "./routes/historyRoute.js";
+import requirementGraphRoutes from "./requirementGraph/routes/requirementGraphRoutes.js";
 import globalErrorHandler from "./controllers/Error/globalErrorhandler.js";
 import CustomError from "./utils/customError.js";
 
@@ -36,6 +37,9 @@ app.use("/api/diagram",diagramGenerator);
 
 //^ route for handling user history
 app.use("/api/history", historyRoute);
+
+//^ standalone requirement graph module
+app.use("/api/requirement-graph", requirementGraphRoutes);
 
 //^ middleware for serving the static files
 // app.use(express.static("public"));

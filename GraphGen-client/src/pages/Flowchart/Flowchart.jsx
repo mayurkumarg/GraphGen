@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowUp, Download, Loader2, AlertCircle, Workflow,
@@ -11,6 +11,8 @@ import useApiKeyStatus from '../../utils/useApiKeyStatus';
 import { Graphviz } from 'graphviz-react';
 import Editor from '@monaco-editor/react';
 import geminiIcon from '../../assets/gemini-icon.png';
+import RequirementGraphViewer from '../../components/RequirementGraphViewer';
+import { generateRequirementGraph } from '../../utils/requirementGraphClient';
 import './Flowchart.css';
 
 const AVAILABLE_MODELS = [
@@ -21,7 +23,7 @@ const AVAILABLE_MODELS = [
   { id: 'gemini-flash-latest',   label: 'Gemini Flash Latest' },
 ];
 
-/* ── Prompt-mode examples ─────────────────────────────────── */
+/* â”€â”€ Prompt-mode examples â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const EXAMPLE_PROMPTS = [
   'Create a flowchart for a user login process with email and password.',
   'Generate a flowchart for an ATM cash withdrawal machine.',
@@ -29,7 +31,7 @@ const EXAMPLE_PROMPTS = [
   'Draw a flowchart for a library book checkout with late fee checking.',
 ];
 
-/* ── Code-mode examples ───────────────────────────────────── */
+/* â”€â”€ Code-mode examples â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const CODE_EXAMPLES = {
   java: `public int factorial(int n) {
     if (n <= 1) return 1;
@@ -65,27 +67,33 @@ export default function Flowchart() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  /* ── shared ── */
+  /* â”€â”€ shared â”€â”€ */
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [vizCode, setVizCode] = useState('');
+  const [requirementGraph, setRequirementGraph] = useState(null);
+  const [requirementGraphLoading, setRequirementGraphLoading] = useState(false);
+  const [requirementGraphError, setRequirementGraphError] = useState(null);
+  const [requirementGraphValidation, setRequirementGraphValidation] = useState(null);
+  const [activeTab, setActiveTab] = useState('diagram');
+  const requestIdRef = useRef(0);
 
-  /* ── history (save only) ── */
+  /* â”€â”€ history (save only) â”€â”€ */
   const { saveHistory } = useHistory('flowchart');
   const { hasApiKey } = useApiKeyStatus();
 
-  /* ── mode: 'prompt' | 'code' ── */
+  /* â”€â”€ mode: 'prompt' | 'code' â”€â”€ */
   const [mode, setMode] = useState('prompt');
 
-  /* ── prompt-mode state ── */
+  /* â”€â”€ prompt-mode state â”€â”€ */
   const [description, setDescription] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash-lite');
 
-  /* ── code-mode state ── */
+  /* â”€â”€ code-mode state â”€â”€ */
   const [language, setLanguage]       = useState('python');
   const [code, setCode]               = useState(CODE_EXAMPLES.python);
 
-  /* ─────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleGenerate = async () => {
     const query = mode === 'prompt' ? description : code;
 
@@ -96,36 +104,63 @@ export default function Flowchart() {
       return;
     }
 
+    const requestId = Date.now() + Math.random();
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setRequirementGraphLoading(true);
+    setRequirementGraphError(null);
+    setRequirementGraph(null);
+    setRequirementGraphValidation(null);
+    setActiveTab('diagram');
 
     try {
       const payload = { query, model: selectedModel };
       if (mode === 'code') payload.language = language;
 
-      const response = await api.post('/api/diagram/flow-chart', payload);
+      const [diagramResult, graphResult] = await Promise.allSettled([
+        api.post('/api/diagram/flow-chart', payload),
+        generateRequirementGraph({ prompt: query, diagramType: 'Flowchart', category: 'FLOWCHART' }),
+      ]);
 
-      if (response.data.status === 'success' && response.data.data.vizCode) {
-        let rawCode = response.data.data.vizCode;
-        rawCode = rawCode.replace(/```[a-zA-Z]*\n?/gi, '').replace(/```/g, '').trim();
-        const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+[^{]*\{[\s\S]*\}/i);
-        if (graphMatch) rawCode = graphMatch[0];
-        setVizCode(rawCode);
+      if (requestId !== requestIdRef.current) return;
 
-        // Save to history
-        const prompt = mode === 'prompt' ? description : code;
-        saveHistory({ prompt, mode, language: mode === 'code' ? language : undefined }, { vizCode: rawCode });
+      if (diagramResult.status === 'fulfilled') {
+        const response = diagramResult.value;
+        if (response.data.status === 'success' && response.data.data.vizCode) {
+          let rawCode = response.data.data.vizCode;
+          rawCode = rawCode.replace(/```[a-zA-Z]*\n?/gi, '').replace(/```/g, '').trim();
+          const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+[^{]*\{[\s\S]*\}/i);
+          if (graphMatch) rawCode = graphMatch[0];
+          setVizCode(rawCode);
+
+          const prompt = mode === 'prompt' ? description : code;
+          saveHistory({ prompt, mode, language: mode === 'code' ? language : undefined }, { vizCode: rawCode });
+        } else {
+          setError('Failed to generate diagram. Please try again.');
+        }
       } else {
-        setError('Failed to generate diagram. Please try again.');
+        const err = diagramResult.reason;
+        console.error('Flowchart error:', err);
+        setError(
+          err.response?.data?.message ||
+          'Failed to connect. Please check your API key and try again.'
+        );
       }
-    } catch (err) {
-      console.error('Flowchart error:', err);
-      setError(
-        err.response?.data?.message ||
-        'Failed to connect. Please check your API key and try again.'
-      );
+
+      if (graphResult.status === 'fulfilled') {
+        setRequirementGraph(graphResult.value?.graph || null);
+        setRequirementGraphValidation(graphResult.value?.validation || null);
+      } else {
+        const err = graphResult.reason;
+        console.error('Requirement graph error:', err);
+        setRequirementGraphError(err.response?.data?.message || err.message || 'Requirement graph generation failed.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRequirementGraphLoading(false);
+      }
     }
   };
 
@@ -176,7 +211,7 @@ export default function Flowchart() {
     img.src = url;
   };
 
-  /* ── Restore from History page navigation ── */
+  /* â”€â”€ Restore from History page navigation â”€â”€ */
   useEffect(() => {
     if (location.state?.fromHistory) {
       if (location.state.outputData?.vizCode) {
@@ -202,7 +237,7 @@ export default function Flowchart() {
     <div className="fc-page">
       <div className="fc-container">
 
-        {/* ══ LEFT PANE ══ */}
+        {/* â•â• LEFT PANE â•â• */}
         <div className="fc-input-pane">
 
           {/* No API Key Banner */}
@@ -243,7 +278,7 @@ export default function Flowchart() {
             </button>
           </div>
 
-          {/* ── PROMPT MODE ── */}
+          {/* â”€â”€ PROMPT MODE â”€â”€ */}
           {mode === 'prompt' && (
             <>
               <div className="fc-input-group fc-flex-grow">
@@ -301,7 +336,7 @@ export default function Flowchart() {
             </>
           )}
 
-          {/* ── CODE MODE ── */}
+          {/* â”€â”€ CODE MODE â”€â”€ */}
           {mode === 'code' && (
             <>
               {/* Code Editor */}
@@ -378,7 +413,7 @@ export default function Flowchart() {
           )}
         </div>
 
-        {/* ══ RIGHT PANE ══ */}
+        {/* â•â• RIGHT PANE â•â• */}
         <div className="fc-output-pane">
           <div className="fc-pane-header fc-output-header">
             <h2>Generated Flowchart</h2>
@@ -389,34 +424,53 @@ export default function Flowchart() {
             )}
           </div>
 
-          <div className="fc-viz-render-area">
-            {loading ? (
-              <div className="fc-loading-state">
-                <Loader2 className="fc-spinner-large" />
-                <p>Building your flowchart…</p>
-                <span className="fc-loading-subtext">
-                  The AI is tracing logic flows, decisions, and loops. This may take a moment.
-                </span>
-              </div>
-            ) : vizCode ? (
-              <div className="fc-viz-container">
-                <Graphviz
-                  dot={vizCode}
-                  options={{ zoom: true, height: '100%', width: '100%', fit: true }}
-                />
-              </div>
-            ) : (
-              <div className="fc-empty-state">
-                <div className="fc-empty-icon">
-                  <Workflow size={44} strokeWidth={1.2} />
+          <div className="fc-output-tabs">
+            <button className={`fc-output-tab ${activeTab === 'diagram' ? 'active' : ''}`} onClick={() => setActiveTab('diagram')}>
+              Generated Diagram
+            </button>
+            <button className={`fc-output-tab ${activeTab === 'requirement-graph' ? 'active' : ''}`} onClick={() => setActiveTab('requirement-graph')}>
+              Requirement Graph
+            </button>
+          </div>
+
+          <div className={`fc-viz-render-area${activeTab === "requirement-graph" ? " rg-dark-canvas" : ""}`}>
+            {activeTab === 'diagram' ? (
+              loading ? (
+                <div className="fc-loading-state">
+                  <Loader2 className="fc-spinner-large" />
+                  <p>Building your flowchartâ€¦</p>
+                  <span className="fc-loading-subtext">
+                    The AI is tracing logic flows, decisions, and loops. This may take a moment.
+                  </span>
                 </div>
-                <p>No flowchart yet</p>
-                <span>
-                  {mode === 'prompt'
-                    ? 'Describe an algorithm or process on the left and press Enter.'
-                    : 'Paste your Java, Python, or JavaScript code and click the arrow.'}
-                </span>
-              </div>
+              ) : vizCode ? (
+                <div className="fc-viz-container">
+                  <Graphviz
+                    dot={vizCode}
+                    options={{ zoom: true, height: '100%', width: '100%', fit: true }}
+                  />
+                </div>
+              ) : (
+                <div className="fc-empty-state">
+                  <div className="fc-empty-icon">
+                    <Workflow size={44} strokeWidth={1.2} />
+                  </div>
+                  <p>No flowchart yet</p>
+                  <span>
+                    {mode === 'prompt'
+                      ? 'Describe an algorithm or process on the left and press Enter.'
+                      : 'Paste your Java, Python, or JavaScript code and click the arrow.'}
+                  </span>
+                </div>
+              )
+            ) : (
+              <RequirementGraphViewer
+                graph={requirementGraph}
+                loading={requirementGraphLoading}
+                error={requirementGraphError}
+                validation={requirementGraphValidation}
+                onRetry={handleGenerate}
+              />
             )}
           </div>
           <div className="powered-by-gemini">

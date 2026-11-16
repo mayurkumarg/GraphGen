@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUp, Download, Loader2, AlertCircle, Boxes, Key } from 'lucide-react';
 import useTitle from '../../utils/useTitle';
@@ -7,6 +7,8 @@ import useHistory from '../../utils/useHistory';
 import useApiKeyStatus from '../../utils/useApiKeyStatus';
 import { Graphviz } from 'graphviz-react';
 import geminiIcon from '../../assets/gemini-icon.png';
+import RequirementGraphViewer from '../../components/RequirementGraphViewer';
+import { generateRequirementGraph } from '../../utils/requirementGraphClient';
 import './UMLDiagram.css';
 
 const AVAILABLE_MODELS = [
@@ -35,11 +37,17 @@ export default function UMLDiagram() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [vizCode, setVizCode] = useState('');
+  const [requirementGraph, setRequirementGraph] = useState(null);
+  const [requirementGraphLoading, setRequirementGraphLoading] = useState(false);
+  const [requirementGraphError, setRequirementGraphError] = useState(null);
+  const [requirementGraphValidation, setRequirementGraphValidation] = useState(null);
+  const [activeTab, setActiveTab] = useState('diagram');
+  const requestIdRef = useRef(0);
 
   const { saveHistory } = useHistory('uml-diagram');
   const { hasApiKey } = useApiKeyStatus();
 
-  /* ── Restore from History page navigation ── */
+  /* â”€â”€ Restore from History page navigation â”€â”€ */
   useEffect(() => {
     if (location.state?.fromHistory) {
       if (location.state.outputData?.vizCode) setVizCode(location.state.outputData.vizCode);
@@ -48,7 +56,7 @@ export default function UMLDiagram() {
     }
   }, [location.state]);
 
-  /* ── Sanitize DOT code from common AI mistakes ── */
+  /* â”€â”€ Sanitize DOT code from common AI mistakes â”€â”€ */
   const sanitizeDotCode = (code) => {
     let sanitized = code;
 
@@ -78,45 +86,65 @@ export default function UMLDiagram() {
       return;
     }
 
+    const requestId = Date.now() + Math.random();
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setRequirementGraphLoading(true);
+    setRequirementGraphError(null);
+    setRequirementGraph(null);
+    setRequirementGraphValidation(null);
+    setActiveTab('diagram');
 
     try {
-      const response = await api.post('/api/diagram/uml', {
-        query: description,
-        model: selectedModel,
-      });
+      const [diagramResult, graphResult] = await Promise.allSettled([
+        api.post('/api/diagram/uml', {
+          query: description,
+          model: selectedModel,
+        }),
+        generateRequirementGraph({ prompt: description, diagramType: 'UML Diagram', category: 'UML' }),
+      ]);
 
-      if (response.data.status === 'success' && response.data.data.vizCode) {
-        let rawCode = response.data.data.vizCode;
+      if (requestId !== requestIdRef.current) return;
 
-        // Strip markdown code block backticks if present
-        rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+      if (diagramResult.status === 'fulfilled') {
+        const response = diagramResult.value;
+        if (response.data.status === 'success' && response.data.data.vizCode) {
+          let rawCode = response.data.data.vizCode;
 
-        // Extract valid graphviz block
-        const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
-        if (graphMatch) {
-          rawCode = graphMatch[0];
+          rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+
+          const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
+          if (graphMatch) {
+            rawCode = graphMatch[0];
+          }
+
+          rawCode = sanitizeDotCode(rawCode);
+          setVizCode(rawCode);
+          saveHistory({ prompt: description }, { vizCode: rawCode });
+        } else {
+          setError('Failed to generate diagram. Invalid response format.');
         }
-
-        // Sanitize common AI-generated DOT syntax errors
-        rawCode = sanitizeDotCode(rawCode);
-
-        setVizCode(rawCode);
-
-        // Save to history
-        saveHistory({ prompt: description }, { vizCode: rawCode });
       } else {
-        setError('Failed to generate diagram. Invalid response format.');
+        console.error('Error generating UML Diagram:', diagramResult.reason);
+        setError(
+          diagramResult.reason.response?.data?.message ||
+            'Failed to connect to the server. Please check your API key and try again.'
+        );
       }
-    } catch (err) {
-      console.error('Error generating UML Diagram:', err);
-      setError(
-        err.response?.data?.message ||
-          'Failed to connect to the server. Please check your API key and try again.'
-      );
+
+      if (graphResult.status === 'fulfilled') {
+        setRequirementGraph(graphResult.value?.graph || null);
+        setRequirementGraphValidation(graphResult.value?.validation || null);
+      } else {
+        const err = graphResult.reason;
+        setRequirementGraphError(err.response?.data?.message || err.message || 'Requirement graph generation failed.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRequirementGraphLoading(false);
+      }
     }
   };
 
@@ -256,7 +284,7 @@ export default function UMLDiagram() {
         <div className="uml-output-pane">
           <div className="uml-pane-header uml-output-header">
             <h2>Generated Diagram</h2>
-            {vizCode && (
+            {activeTab === 'diagram' && vizCode && (
               <button className="uml-btn-download" onClick={handleDownloadPNG} title="Download PNG">
                 <Download size={18} />
                 <span>Export PNG</span>
@@ -264,33 +292,52 @@ export default function UMLDiagram() {
             )}
           </div>
 
-          <div className="uml-viz-render-area">
-            {loading ? (
-              <div className="uml-loading-state">
-                <Loader2 className="uml-spinner-large" />
-                <p>Analyzing description & generating UML diagram...</p>
-                <span className="uml-loading-subtext">
-                  The AI is determining the diagram type and building the structure. This may take a
-                  moment.
-                </span>
-              </div>
-            ) : vizCode ? (
-              <div className="uml-viz-container">
-                <Graphviz
-                  dot={vizCode}
-                  options={{ zoom: true, height: '100%', width: '100%', fit: true }}
-                />
-              </div>
-            ) : (
-              <div className="uml-empty-state">
-                <div className="uml-empty-icon">
-                  <Boxes size={48} strokeWidth={1} />
+          <div className="output-tabs">
+            <button className={`output-tab ${activeTab === 'diagram' ? 'active' : ''}`} onClick={() => setActiveTab('diagram')}>
+              Generated Diagram
+            </button>
+            <button className={`output-tab ${activeTab === 'requirement-graph' ? 'active' : ''}`} onClick={() => setActiveTab('requirement-graph')}>
+              Requirement Graph
+            </button>
+          </div>
+
+          <div className={`uml-viz-render-area${activeTab === "requirement-graph" ? " rg-dark-canvas" : ""}`}>
+            {activeTab === 'diagram' ? (
+              loading ? (
+                <div className="uml-loading-state">
+                  <Loader2 className="uml-spinner-large" />
+                  <p>Analyzing description & generating UML diagram...</p>
+                  <span className="uml-loading-subtext">
+                    The AI is determining the diagram type and building the structure. This may take a
+                    moment.
+                  </span>
                 </div>
-                <p>No diagram generated yet.</p>
-                <span>
-                  Describe a system or process on the left and press <strong>Enter</strong> or click the arrow to generate.
-                </span>
-              </div>
+              ) : vizCode ? (
+                <div className="uml-viz-container">
+                  <Graphviz
+                    dot={vizCode}
+                    options={{ zoom: true, height: '100%', width: '100%', fit: true }}
+                  />
+                </div>
+              ) : (
+                <div className="uml-empty-state">
+                  <div className="uml-empty-icon">
+                    <Boxes size={48} strokeWidth={1} />
+                  </div>
+                  <p>No diagram generated yet.</p>
+                  <span>
+                    Describe a system or process on the left and press <strong>Enter</strong> or click the arrow to generate.
+                  </span>
+                </div>
+              )
+            ) : (
+              <RequirementGraphViewer
+                graph={requirementGraph}
+                loading={requirementGraphLoading}
+                error={requirementGraphError}
+                validation={requirementGraphValidation}
+                onRetry={handleGenerate}
+              />
             )}
           </div>
           <div className="powered-by-gemini">

@@ -1,0 +1,16 @@
+{
+  "outputs": [
+    {
+      "caseId": "TC-01",
+      "model": "GraphGen",
+      "modelVersion": "enter the actual model/version",
+      "rawOutput": "paste the unmodified Graphviz DOT output here"
+    },
+    {
+      "caseId": "TC-01",
+      "model": "OpenAI",
+      "modelVersion": "enter the actual model/version",
+      "rawOutput": "paste the actual, unmodified model output here"
+    }
+  ]
+}

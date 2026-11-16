@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import handleAsync from "./../../../utils/asyncFunctionHandler.js";
 import CustomError from "./../../../utils/customError.js";
 import { getUserApiKey } from "./../../../utils/getUserApiKey.js";
+import generateErContentWithRetry from "./erGenerationRetry.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,9 +118,11 @@ const erDiagramGenerator = handleAsync(async (req, res, next) => {
   const userClient = new GoogleGenAI({ apiKey });
 
   const targetModel = model || process.env.ER_MODEL_TYPE || "gemini-3.5-flash-lite";
+  const generateContent = (request) =>
+    generateErContentWithRetry(() => userClient.models.generateContent(request));
 
   // Stage 1: Reasoning — AI identifies entities, attributes, relationships step-by-step
-  const reasoningResponse = await userClient.models.generateContent({
+  const reasoningResponse = await generateContent({
     model: targetModel,
     contents: [
       {
@@ -137,7 +140,7 @@ const erDiagramGenerator = handleAsync(async (req, res, next) => {
     ? `\n\nIMPORTANT: Use ${targetDialect} SQL dialect for all CREATE TABLE statements.\n\n`
     : "\n\n";
 
-  const vizResponse = await userClient.models.generateContent({
+  const vizResponse = await generateContent({
     model: targetModel,
     contents: [
       {

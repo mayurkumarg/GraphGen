@@ -246,6 +246,7 @@
 }
 
 .output-tab {
+
   border: 1px solid var(--border);
   background: var(--bg-input);
   color: var(--text-secondary);
@@ -523,6 +524,7 @@
   }
 
   .output-tab {
+
     font-size: 0.74rem;
     padding: 0.33rem 0.65rem;
   }
@@ -537,4 +539,14 @@
   .dfa-input-pane, .dfa-output-pane {
     padding: 1rem;
   }
+}
+
+/* == RequirementGraph view: dark canvas override == */
+.rg-dark-canvas {
+  background: #070b14 !important;
+  background-image: none !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
 }

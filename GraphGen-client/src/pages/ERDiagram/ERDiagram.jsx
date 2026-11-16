@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowUp,
@@ -18,6 +18,8 @@ import { copyToClipboard } from '../../utils/clipboard';
 import { Graphviz } from 'graphviz-react';
 import Editor from '@monaco-editor/react';
 import geminiIcon from '../../assets/gemini-icon.png';
+import RequirementGraphViewer from '../../components/RequirementGraphViewer';
+import { generateRequirementGraph } from '../../utils/requirementGraphClient';
 import './ERDiagram.css';
 
 const AVAILABLE_MODELS = [
@@ -65,13 +67,18 @@ export default function ERDiagram() {
   const [vizCode, setVizCode] = useState('');
   const [sqlOutput, setSqlOutput] = useState([]);
   const [activeTab, setActiveTab] = useState('diagram');
+  const [requirementGraph, setRequirementGraph] = useState(null);
+  const [requirementGraphLoading, setRequirementGraphLoading] = useState(false);
+  const [requirementGraphError, setRequirementGraphError] = useState(null);
+  const [requirementGraphValidation, setRequirementGraphValidation] = useState(null);
   const [copiedSql, setCopiedSql] = useState(false);
   const copyResetTimeoutRef = useRef(null);
+  const requestIdRef = useRef(0);
 
   const { saveHistory } = useHistory('er-diagram');
   const { hasApiKey } = useApiKeyStatus();
 
-  /* ── Restore from History page navigation ── */
+  /* â”€â”€ Restore from History page navigation â”€â”€ */
   useEffect(() => {
     if (location.state?.fromHistory) {
       if (location.state.outputData?.vizCode) setVizCode(location.state.outputData.vizCode);
@@ -94,46 +101,69 @@ export default function ERDiagram() {
       return;
     }
 
+    const requestId = Date.now() + Math.random();
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setRequirementGraphLoading(true);
+    setRequirementGraphError(null);
+    setRequirementGraph(null);
+    setRequirementGraphValidation(null);
+    setActiveTab('diagram');
 
     try {
-      const response = await api.post('/api/diagram/toc/er', {
-        query: description,
-        model: selectedModel,
-      });
+      const [diagramResult, graphResult] = await Promise.allSettled([
+        api.post('/api/diagram/toc/er', {
+          query: description,
+          model: selectedModel,
+        }),
+        generateRequirementGraph({ prompt: description, diagramType: 'ER Diagram', category: 'ER' }),
+      ]);
 
-      if (response.data.status === 'success' && response.data.data.vizCode) {
-        let rawCode = response.data.data.vizCode;
+      if (requestId !== requestIdRef.current) return;
 
-        // Strip markdown code block backticks if present
-        rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+      if (diagramResult.status === 'fulfilled') {
+        const response = diagramResult.value;
+        if (response.data.status === 'success' && response.data.data.vizCode) {
+          let rawCode = response.data.data.vizCode;
 
-        // Extract valid graphviz block — ER uses undirected 'graph'
-        const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
-        if (graphMatch) {
-          rawCode = graphMatch[0];
+          rawCode = rawCode.replace(/```[a-zA-Z]*\n/gi, '').replace(/```/g, '').trim();
+
+          const graphMatch = rawCode.match(/(?:strict\s+)?(?:di)?graph\s+.*?\{[\s\S]*\}/i);
+          if (graphMatch) {
+            rawCode = graphMatch[0];
+          }
+
+          const sqlStatements = getSqlStatements(response.data.data);
+          setVizCode(rawCode);
+          setSqlOutput(sqlStatements);
+          setActiveTab('diagram');
+          setCopiedSql(false);
+
+          saveHistory({ prompt: description }, { vizCode: rawCode, sqlQueries: sqlStatements });
+        } else {
+          setError('Failed to generate diagram. Invalid response format.');
         }
-
-        const sqlStatements = getSqlStatements(response.data.data);
-        setVizCode(rawCode);
-        setSqlOutput(sqlStatements);
-        setActiveTab('diagram');
-        setCopiedSql(false);
-
-        // Save to history
-        saveHistory({ prompt: description }, { vizCode: rawCode, sqlQueries: sqlStatements });
       } else {
-        setError('Failed to generate diagram. Invalid response format.');
+        console.error('Error generating ER Diagram:', diagramResult.reason);
+        setError(
+          diagramResult.reason.response?.data?.message ||
+            'Failed to connect to the server. Please check your API key and try again.'
+        );
       }
-    } catch (err) {
-      console.error('Error generating ER Diagram:', err);
-      setError(
-        err.response?.data?.message ||
-          'Failed to connect to the server. Please check your API key and try again.'
-      );
+
+      if (graphResult.status === 'fulfilled') {
+        setRequirementGraph(graphResult.value?.graph || null);
+        setRequirementGraphValidation(graphResult.value?.validation || null);
+      } else {
+        const err = graphResult.reason;
+        setRequirementGraphError(err.response?.data?.message || err.message || 'Requirement graph generation failed.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRequirementGraphLoading(false);
+      }
     }
   };
 
@@ -328,7 +358,13 @@ export default function ERDiagram() {
               className={`er-output-tab ${activeTab === 'diagram' ? 'active' : ''}`}
               onClick={() => setActiveTab('diagram')}
             >
-              Diagram
+              Generated Diagram
+            </button>
+            <button
+              className={`er-output-tab ${activeTab === 'requirement-graph' ? 'active' : ''}`}
+              onClick={() => setActiveTab('requirement-graph')}
+            >
+              Requirement Graph
             </button>
             <button
               className={`er-output-tab ${activeTab === 'sql' ? 'active' : ''}`}
@@ -338,7 +374,7 @@ export default function ERDiagram() {
             </button>
           </div>
 
-          <div className={`er-viz-render-area ${activeTab !== 'diagram' ? 'er-text-mode' : ''}`}>
+          <div className={`er-viz-render-area ${activeTab !== 'diagram' && activeTab !== 'requirement-graph' ? 'er-text-mode' : ''} ${activeTab === 'requirement-graph' ? 'rg-dark-canvas' : ''}`}>
             {activeTab === 'diagram' ? (
               loading ? (
                 <div className="er-loading-state">
@@ -367,6 +403,14 @@ export default function ERDiagram() {
                   </span>
                 </div>
               )
+            ) : activeTab === 'requirement-graph' ? (
+              <RequirementGraphViewer
+                graph={requirementGraph}
+                loading={requirementGraphLoading}
+                error={requirementGraphError}
+                validation={requirementGraphValidation}
+                onRetry={handleGenerate}
+              />
             ) : (
               /* SQL Tab */
               <div className="er-text-output-block">
@@ -374,7 +418,7 @@ export default function ERDiagram() {
                   <h3>CREATE TABLE Statements</h3>
                 </div>
                 {loading ? (
-                  <div className="er-text-loading">Loading SQL statements…</div>
+                  <div className="er-text-loading">Loading SQL statementsâ€¦</div>
                 ) : sqlOutput.length > 0 ? (
                   <>
                     <p className="er-text-output-description">

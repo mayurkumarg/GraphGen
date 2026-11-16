@@ -1,7 +1,7 @@
-/* ═══════════════════════════════════════════════════
-   NFA Generator — Split-Pane Layout
+﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   NFA Generator â€” Split-Pane Layout
    (Modeled after DFA, with NFA-specific orange theming)
-   ═══════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 .nfa-page {
   height: calc(100dvh - var(--nav-height));
@@ -24,7 +24,7 @@
   background-size: 40px 40px;
 }
 
-/* ── Base Pane Styles ── */
+/* â”€â”€ Base Pane Styles â”€â”€ */
 .nfa-input-pane,
 .nfa-output-pane {
   flex: 1;
@@ -52,7 +52,7 @@
   background: var(--bg-primary);
 }
 
-/* ── Header ── */
+/* â”€â”€ Header â”€â”€ */
 .nfa-pane-header {
   margin-bottom: 1.75rem;
 }
@@ -87,7 +87,7 @@
   margin-bottom: 1rem;
 }
 
-/* ── Form Elements ── */
+/* â”€â”€ Form Elements â”€â”€ */
 .nfa-input-group {
   margin-bottom: 1.5rem;
   display: flex;
@@ -163,7 +163,7 @@
   color: var(--text-muted);
 }
 
-/* ── Error State ── */
+/* â”€â”€ Error State â”€â”€ */
 .nfa-error-message {
   display: flex;
   align-items: flex-start;
@@ -183,7 +183,7 @@
   margin-top: 0.1rem;
 }
 
-/* ── Generate Button ── */
+/* â”€â”€ Generate Button â”€â”€ */
 .nfa-btn-generate {
   width: 100%;
   padding: 1rem;
@@ -215,7 +215,7 @@
   opacity: 0.8;
 }
 
-/* ── Download Button ── */
+/* â”€â”€ Download Button â”€â”€ */
 .nfa-btn-download {
   display: flex;
   align-items: center;
@@ -265,7 +265,7 @@
   background: rgba(249, 115, 22, 0.12);
 }
 
-/* ── Output / Viz Area ── */
+/* â”€â”€ Output / Viz Area â”€â”€ */
 .nfa-viz-render-area {
   flex: 1;
   background-color: #f8fafc;
@@ -393,7 +393,7 @@
   color: var(--text-secondary);
 }
 
-/* ── Empty & Loading States ── */
+/* â”€â”€ Empty & Loading States â”€â”€ */
 .nfa-empty-state,
 .nfa-loading-state {
   display: flex;
@@ -444,7 +444,7 @@
   line-height: 1.5;
 }
 
-/* ── Spinners ── */
+/* â”€â”€ Spinners â”€â”€ */
 .nfa-spinner {
   animation: nfa-spin 1s linear infinite;
 }
@@ -461,9 +461,9 @@
   to { transform: rotate(360deg); }
 }
 
-/* ═══════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    Responsive Breakpoints
-   ═══════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 1024px) {
   .nfa-input-pane {
     max-width: 400px;
@@ -527,6 +527,15 @@
   }
 
   .output-tab {
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
     font-size: 0.74rem;
     padding: 0.33rem 0.65rem;
   }
@@ -542,4 +551,14 @@
   .nfa-output-pane {
     padding: 1rem;
   }
+}
+
+/* == RequirementGraph view: dark canvas override == */
+.rg-dark-canvas {
+  background: #070b14 !important;
+  background-image: none !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
 }
